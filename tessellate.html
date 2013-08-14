@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1,
+      minimum-scale=1, maximum-scale=1, user-scalable=0,target-densityDpi=device-dpi" />
+  <meta name="HandheldFriendly" content="true" />
+  <style>
+  html, body { height:100%;margin:0px;padding:0px;width:100%;overflow:hidden }
+  #myCanvas { border:0px solid #d3d3d3; }
+  #panel { position:absolute;left:45%;top:20px;margin-left:auto;margin-right:auto;
+    font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:x-large;
+    padding:5px;border:2px solid;border-radius:25px;border-color:#FF6666;text-align:center;
+    box-shadow:10px 10px 5px #888888;background-color:#FF6666;opacity:0.9;cursor:pointer;
+    width:130px;z-index:3;color:#660066;font-weight:bolder }
+  #button { cursor:pointer; }
+  </style>
+</head>
+<body onload="initPage()">
+  <input id="panel" type="button" value="tessellate" onclick="clickBtn()" />
+  <div id="myCanvas" />
+  <script src="kinetic-v4.5.5.min.js"></script>
+  <script defer="defer">
+
+  // globals
+  var polyPts, circles, stage, layer, tesselayer, tesseshape, poly;
+  var offX, offY, lastOffX, lastOffY;
+  var midWidth = window.innerWidth/2;
+  var midHeight = window.innerHeight/2;
+
+  function initPage() {
+    polyPts = new Array(4);
+    circles = new Array(4);
+
+    polyPts[0] = [midWidth - 50, midHeight - 50];
+    polyPts[1] = [midWidth - 50, midHeight + 50];
+    polyPts[2] = [midWidth + 50, midHeight + 50];
+    polyPts[3] = [midWidth + 50, midHeight - 50];
+
+    stage = new Kinetic.Stage({
+      container:"myCanvas",
+      width:window.innerWidth,
+      height:window.innerHeight
+    });
+
+    layer = new Kinetic.Layer();
+    tesselayer = new Kinetic.Layer();
+
+    poly = new Kinetic.Polygon({
+      points:polyPts,
+      fill: '#00D2FF',
+      stroke: 'black',
+      strokeWidth: 4,
+      draggable:true
+    });
+
+    offX = 0;
+    offY = 0;
+    lastOffX = 0;
+    lastOffY = 0;
+    poly.on('dragmove', makeMovePoly());
+    poly.on('dragend', makeResetPoly());
+
+    layer.add(poly);
+    for (i=4;i--;) {
+      circles[i] = new Kinetic.Circle({
+        x: polyPts[i][0],
+        y: polyPts[i][1],
+        radius:10,
+        fill:'yellow',
+        stroke:'black',
+        strokeWidth:2,
+        opacity:0.8,
+        draggable:true
+      });
+
+      circles[i].on('dragmove', makeDragDot(i));
+      circles[i].on('mouseover', function() { document.body.style.cursor = 'pointer'; });
+      circles[i].on('mouseout', function() { document.body.style.cursor = 'default'; });
+      layer.add(circles[i]);
+    }
+    stage.add(layer);
+  }
+
+  function makeResetPoly() {
+    return function() {
+      for (i=4;i--;) {
+        polyPts[i][0] += offX;
+        polyPts[i][1] += offY;
+      }
+      lastOffX += offX;
+      lastOffY += offY;
+      offX = 0;
+      offY = 0;
+    }
+  }
+
+  function makeMovePoly() {
+    return function() {
+      offX = poly.getX() - lastOffX;
+      offY = poly.getY() - lastOffY;
+      addDots();
+    }
+  }
+
+  function makeDragDot(offset) {
+    return function(evt) {
+      var lastPolyPt = polyPts[offset];
+      polyPts[offset] = [circles[offset].getX(), circles[offset].getY()];
+      if (selfIntersect()) {
+        polyPts[offset] = lastPolyPt;
+        circles[offset].setX(lastPolyPt[0]);
+        circles[offset].setY(lastPolyPt[1]);
+      } else {
+        poly.setPoints(polyPts);
+        poly.setPosition(0,0);
+        lastOffX = 0;
+        lastOffY = 0;
+        offX = 0;
+        offY = 0;
+      }
+    }
+  }
+
+  function addDots() {
+    var useX, useY;
+    for (i=4;i--;) {
+      useX = polyPts[i][0];
+      useY = polyPts[i][1];
+      if (poly.isDragging()) {
+        useX += offX;
+        useY += offY;
+      }
+      circles[i].setX(useX);
+      circles[i].setY(useY);
+      circles[i].setOffset(0, 0);
+    }
+  }
+
+  function tessellate() {
+    tesselayer.destroyChildren();
+    tesseshape = new Kinetic.Polygon({
+      points:polyPts,
+      fill: 'black',
+      stroke: 'black',
+      strokeWidth: 1
+    });
+    
+    var tessegroup = new Kinetic.Group();
+    tessegroup.add(tesseshape);
+    
+    var midX, midY;
+    var bottom, top, farLeft, farRight;
+    var thisX, thisY;
+    bottom = top = circles[0].getY();
+    farLeft = farRight = circles[0].getX();
+    
+    for (i=4;i--;) {
+      thisX = circles[i].getX();
+      thisY = circles[i].getY();
+      if (i) {
+        if (thisY > bottom) bottom = thisY;
+        if (thisY < top) top = thisY;
+        if (thisX < farLeft) farLeft = thisX;
+        if (thisX > farRight) farRight = thisX;
+        midX = (thisX + circles[i-1].getX()) / 2;
+        midY = (thisY + circles[i-1].getY()) / 2;
+      } else {
+        midX = (thisX + circles[3].getX()) / 2;
+        midY = (thisY + circles[3].getY()) / 2;
+      }
+      
+      var shapeCopy = tesseshape.clone({
+        fill:'white',
+        x: midX,
+        y: midY,
+        offset: [midX,midY],
+        rotationDeg:180
+      });
+      
+      tessegroup.add(shapeCopy);
+    }
+
+    var moveamt = new Array(4);
+    moveamt = [[circles[0].getX() - circles[2].getX(), circles[0].getY() - circles[2].getY()],
+      [circles[1].getX() - circles[3].getX(), circles[1].getY() - circles[3].getY()],
+      [circles[2].getX() - circles[0].getX(), circles[2].getY() - circles[0].getY()],
+      [circles[3].getX() - circles[1].getX(), circles[3].getY() - circles[1].getY()]];
+
+    var tg = new Kinetic.Group();
+    for (i=4;i--;) {
+      var tessegroup2 = tessegroup.clone();
+      tessegroup2.move(moveamt[i]);
+      tg.add(tessegroup2);
+    }
+    
+    tessegroup.destroy();
+    
+    var tessegroupmain = new Kinetic.Group();
+    tessegroupmain.add(tg);
+    
+    for (j=2;j<4;j++) {
+      tessegroupmain.add(addPattern(tg, moveamt, j));
+    }
+    
+    tg.destroy();
+    
+    var t2 = new Kinetic.Group();
+    for (k=2;k<4;k++) {
+      t2.add(addPattern(tessegroupmain, moveamt, k));
+    }
+    
+    tessegroupmain.destroy();
+    for (m=2;m<4;m++) {
+      tg = addPattern(t2, moveamt, m);
+      tessegroupmain.add(tg);
+    }
+    
+    var moveX = midWidth-((((farRight-farLeft)/2) + farLeft) * 2);
+    var moveY = midHeight-((((bottom-top)/2) + bottom) * 2);
+    var useScale = 1.5;
+    var height = bottom - top;
+    var width = farRight - farLeft;
+    if (( height > 400 ) && ( width > 400 )) {
+      useScale = 0.5;
+    } else if (( height < 100 ) || ( width < 100 )) {
+      if (( height < 50 ) || ( width < 50 )) {
+        if (( height < 25) || (width < 25)) {
+          useScale = 10;
+          if (moveX < 0) {
+            moveX *= 5;
+          } else {
+            moveX *= 2;
+          }
+          
+          if (moveY < 0) {
+            moveY *= 5;
+          } else {
+            moveY *= 2;
+          }
+        } else {
+          useScale = 6;
+          if (moveX < 0) moveX *= 3;
+          if (moveY < 0) moveY *= 3;
+        } 
+      } else {
+        useScale = 4;
+      }
+    }
+    tessegroupmain.setScale(useScale);
+    tessegroupmain.move(moveX, moveY); 
+    tesselayer.add(tessegroupmain);
+  }
+  
+  function addPattern(t, moveamt, mult) {
+    var tm = new Kinetic.Group();
+    for (i=4;i--;) {
+      var t2 = t.clone();
+      t2.move(moveamt[i][0]*mult, moveamt[i][1]*mult);
+      tm.add(t2);
+    }
+    return tm;
+  }
+
+  function selfIntersect() {
+    var a, b, numerator1, numerator2, denominator;
+    var startx1, startx2, endx1, endx2, starty1, starty2, endy1, endy2;
+    for (i=4;i--;) {
+      if (!i) break;
+      for (j=i-1;j--;) {
+        startx1 = polyPts[i][0];
+        starty1 = polyPts[i][1];
+        if (i > 0) {
+          endx1 = polyPts[i-1][0];
+          endy1 = polyPts[i-1][1];
+        } else {
+          endx1 = polyPts[3][0];
+          endy1 = polyPts[3][1];
+        }
+        startx2 = polyPts[j][0];
+        starty2 = polyPts[j][1];
+        if (j > 0) {
+          endx2 = polyPts[j-1][0];
+          endy2 = polyPts[j-1][1];
+        } else {
+          endx2 = polyPts[3][0];
+          endy2 = polyPts[3][1];
+        }
+        denominator = ((endy2-starty2)*(endx1-startx1))-((endx2-startx2)*(endy1-starty1));
+        if (!denominator) return false;
+        a = starty1 - starty2;
+        b = startx1 - startx2;
+        numerator1 = ((endx2 - startx2) * a) - ((endy2 - starty2) * b);
+        numerator2 = ((endx1 - startx1) * a) - ((endy1 - starty1) * b);
+        a = numerator1 / denominator;
+        b = numerator2 / denominator;
+        if (a > 0 && a < 1 && b > 0 && b < 1) return true;
+      }
+    }
+    return false;
+  }
+
+  function clickBtn() {
+    var btn = document.getElementById("panel");
+    if (btn.value == "tessellate") {
+      btn.value = "edit shape";
+      layer.hide();
+      tessellate();
+      document.body.style.background="black";
+      stage.add(tesselayer);
+    } else {
+      btn.value = "tessellate";
+      tesselayer.remove();
+      document.body.style.background="none";
+      layer.show();
+    }
+  }
+  </script>
+</body>
+</html>
+
