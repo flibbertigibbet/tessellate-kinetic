@@ -139,9 +139,9 @@ solid;border-radius:25px;border-color:#FF6666;text-align:center;
     tesselayer.destroyChildren();
     tesseshape = new Kinetic.Polygon({
       points:polyPts,
-      fill: 'green',
+      fill: 'black',
       stroke: 'black',
-      strokeWidth: 2,
+      strokeWidth: 1,
     });
     tesselayer.add(tesseshape);
     stage.add(tesselayer);
@@ -265,7 +265,7 @@ solid;border-radius:25px;border-color:#FF6666;text-align:center;
             midY = (circles[i].getY() + circles[3].getY()) / 2;
          }
          var image = new Kinetic.Image({ image: img, x: midX, y: midY,
-           opacity:0.5, offset: [midX - minX, midY - minY], rotationDeg:180 });
+           opacity:1, offset: [midX - minX, midY - minY], rotationDeg:180 });
           tesselayer.add(image); 
           addMore(image);
         }
